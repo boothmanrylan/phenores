@@ -1,7 +1,7 @@
 
 import os
 
-configfile: "config.yaml"
+configfile: "config.yml"
 
 #################################################################################
 # FUNCTIONS                                                                     #
@@ -43,71 +43,67 @@ def OPJ(*args):
 # 		
 
 
-rule mics:
-	input: 
-		"data/raw/GenotypicAMR.csv"
-	output:
-		"data/interim/mic_class_dataframe.pkl", "data/interim/mic_class_order_dict.pkl"
-	script:
-		"src/data/bin_mics.py"
+rule bin_mics: # Matt's MIC value encoding method
+    input:
+        "data/raw/GenotypicAMR.csv"
+    output:
+        "data/interim/mic_class_dataframe.pkl", "data/interim/mic_class_order_dict.pkl"
+    script:
+        "src/data/bin_mics.py"
 
-rule countkmers:
+rule count_kmers: # Create the kmer count database
     input:
         "data/raw/genomes/"
     output:
-        expand("data/interim/db.k{k}.l{l}", k=config["k"], l=config["l"])
-    run:
-        from kmerprediction import kmer_counter
-        all_files = []
-        for f in input:
-            files = [f + x for x in os.listdir(f)]
-            all_files.extend(files)
-        kmer_counter.count_kmers(config["k"], config["l"], files, output, True)
+        expand("data/interim/kmer_counts.k{k}.l{l}.db", k=config["k"], l=config["l"])
+    script:
+        "src/data/count_kmers.py"
 
-rule gatherdata:
+rule prepare_metadata: # Convert metadata sheet to useable format
+    input:
+        "data/raw/GenotypicAMR.csv",
+        "data/interim/mic_class_dataframe.pkl"
+    output:
+        expand("data/interim/metadata/GenotypicAMR_{label}.pkl", label=['regular', 'clean', 'bin'])
+    script:
+        "src/data/prepare_metadata.py"
+
+rule gather_data: # Create train/test data from metadata sheet and kmner count database, save data
     input:
         "data/raw/genomes/",
-        "data/raw/GenotypicAMR.xlsx",
-        expand("data/interim/db.k{k}.l{l}", k=config["k"], l=config["l"]),
+        expand("data/interim/kmer_counts.k{k}.l{l}.db", k=config["k"], l=config["l"]),
+        "data/interim/metadata/GenotypicAMR_{label}.pkl"
     output:
-        expand("data/interim/train_test_split.k{k}.l{l}/train_data.pkl", k=config["k"], l=config["l"]),
-        expand("data/interim/train_test_split.k{k}.l{l}/train_labels.pkl", k=config["k"], l = config["l"]),
-        expand("data/interim/train_test_split.k{k}.l{l}/test_data.pkl", k=config["k"], l=config["l"]),
-        expand("data/interim/train_test_split.k{k}.l{l}/test_labels.pkl", k=config["k"], l=config["l"]),
-        expand("data/interim/train_test_split.k{k}.l{l}/label_encoder.pkl", k=config["k"], l=config["l"]),
+        expand("data/interim/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}.pkl",
+               file=["x_train", "y_train", "x_test", "y_test"])
     script:
-        "src/data/gatherdata.py"
+        "src/features/gather_data.py"
 
-rule preprocessdata:
+rule process_data: # Load train/test data, perform feature selection and data scaling, save processed data
     input:
-        expand("data/interim/train_test_split.k{k}.l{l}/train_data.pkl", k=config["k"], l=config["l"]),
-        expand("data/interim/train_test_split.k{k}.l{l}/train_labels.pkl", k=config["k"], l = config["l"]),
-        expand("data/interim/train_test_split.k{k}.l{l}/test_data.pkl", k=config["k"], l=config["l"]),
-        expand("data/interim/train_test_split.k{k}.l{l}/test_labels.pkl", k=config["k"], l=config["l"])
+        expand("data/interim/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}.pkl",
+               file=["x_train", "y_train", "x_test", "y_test"])
     output:
-        "data/processed/train_data.pkl",
-        "data/processed/train_labels.pkl",
-        "data/processed/test_data.pkl",
-        "data/processed/test_labels.pkl",
+        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}.pkl",
+               file=["x_train", "y_train", "x_test", "y_test"])
     script:
-        "src/data/preprocessdata.py"
+        "src/features/process_data.py"
 
-rule trainneuralnet:
+rule train_model: # Create model, pass train data to model, save model
     input:
-        "data/processed/train_data.pkl",
-        "data/processed/train_labels.pkl",
-        "data/processed/test_labels.pkl"
+        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}.pkl",
+               file=["x_train", "y_train", "x_test", "y_test"])
     output:
-        "models/neural_net.h5",
+        "models/{drug}/{label}/{MLtype, (NN)|(SVM)}_{MLmethod, (C|R)}.h5"
     script:
-        "src/models/train_neural_net.py"
+        "src/models/train_{wildcards.MLtype}_{wildcards.MLmethod}.py"
 
-rule testneuralnet:
+rule test_model: # Load pre-trained model, pass test data to model, write result to file
     input:
-        "models/neural_net.h5",
-        "data/processed/test_data.pkl",
-        "data/processed/test_labels.pkl"
+        "models/{drug}/{label}/{MLtype}_{MLmethod}.h5",
+        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}.pkl",
+               file=["x_train", "y_train", "x_test", "y_test"])
+    output:
+        "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_{MLmethod, (C|R)}.txt"
     script:
-        "src/models/test_neural_net.py"
-
-
+        "src/models/test_{wildcards.MLtype}.py"
