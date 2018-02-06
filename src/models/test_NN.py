@@ -10,8 +10,6 @@ with open(snakemake.input[1], 'rb') as f:
     x_test = pickle.load(f)
 with open(snakemake.input[2], 'rb') as f:
     y_test = pickle.load(f)
-with open(snakemake.input[3], 'rb') as f:
-    y_train = pickle.load(f)
 
 loss, accuracy = model.evaluate(x_test, y_test)
 

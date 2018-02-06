@@ -92,7 +92,7 @@ rule process_data: # Load train/test data, perform feature selection and data sc
 rule train_model: # Create model, pass train data to model, save model
     input:
         expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}.pkl",
-               file=["x_train", "y_train", "x_test", "y_test"])
+               file=["x_train", "y_train"])
     output:
         "models/{drug}/{label}/{MLtype, (NN)|(SVM)}_{MLmethod, (C|R)}.h5"
     script:
@@ -102,7 +102,7 @@ rule test_model: # Load pre-trained model, pass test data to model, write result
     input:
         "models/{drug}/{label}/{MLtype}_{MLmethod}.h5",
         expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}.pkl",
-               file=["x_train", "y_train", "x_test", "y_test"])
+               file=["x_test", "y_test"])
     output:
         "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_{MLmethod, (C|R)}.txt"
     script:

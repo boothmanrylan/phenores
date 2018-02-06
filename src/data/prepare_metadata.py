@@ -6,7 +6,7 @@ import numpy as np
 import math
 from sklearn.externals import joblib
 
-def clean_elem(elem):
+def clean_elem(elem): # Label encoding as described in the paper
     elem = str(elem)
     if '=' in elem:
         new_value = math.log2(float(elem[2:]))
@@ -20,7 +20,7 @@ def clean_elem(elem):
         new_value = 0
     return new_value
 
-def clean_series(series):
+def clean_series(series): # Wrapper to apply to each element
     new_series = series.apply(clean_elem)
     return new_series
 
@@ -35,12 +35,15 @@ df = df.set_index('run')
 df = df.filter(regex='MIC')
 df = df.rename(columns= lambda x: x.replace('MIC_', ''))
 
+# Save the dataframe without altering it
 with open(snakemake.output[0], 'wb') as f:
     pickle.dump(df, f)
 
 df = df.apply(clean_series)
 
+# Save the dataframe after cleaning
 with open(snakemake.output[1], 'wb') as f:
     pickle.dump(df, f)
 
+# Rename dataframe created by Matt's binning to be compatable with snakemake wildcards
 copyfile(snakemake.input[1], snakemake.output[2])

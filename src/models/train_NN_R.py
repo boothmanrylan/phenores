@@ -5,7 +5,6 @@ from keras.models import Sequential
 from keras.layers import Dense, Flatten, Conv1D
 from sklearn.externals import joblib
 
-
 with open(snakemake.input[0], 'rb') as f:
     x_train = pickle.load(f)
 with open(snakemake.input[1], 'rb') as f:
