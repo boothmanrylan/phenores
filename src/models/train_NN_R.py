@@ -22,6 +22,6 @@ model.compile(optimizer='adam',
               metrics=['accuracy'])
 y_train = np.asarray(y_train)
 
-model.fit(x_train, y_train)
+model.fit(x_train, y_train, epochs=50, batch_size=10)
 
 model.save(snakemake.output[0])
