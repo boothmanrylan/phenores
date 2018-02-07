@@ -27,54 +27,71 @@ def convert_to_numbers(labels): # TODO: Get rid of this bin/regular aren't for r
 
     return new_labels
 
-with open(snakemake.input[0], 'rb') as f:
-    x_train = pickle.load(f)
-with open(snakemake.input[1], 'rb') as f:
-    y_train = pickle.load(f)
-with open(snakemake.input[2], 'rb') as f:
-    x_test = pickle.load(f)
-with open(snakemake.input[3], 'rb') as f:
-    y_test = pickle.load(f)
+def process_data(x_train_in, y_train_in, x_test_in, y_test_in, x_train_out,
+                 y_train_out, x_test_out, y_test_out):
 
-MLtype = snakemake.wildcards.MLtype # SVM or neural net
-MLmethod = snakemake.wildcards.MLmethod # recursion or classification
+    with open(x_train_in, 'rb') as f:
+        x_train = pickle.load(f)
+    with open(y_train_in, 'rb') as f:
+        y_train = pickle.load(f)
+    with open(x_test_in, 'rb') as f:
+        x_test = pickle.load(f)
+    with open(y_test_in, 'rb') as f:
+        y_test = pickle.load(f)
 
-if MLmethod == 'R': # Enforce numerical labels for recursion
-    y_train = convert_to_numbers(y_train)
-    y_test = convert_to_numbers(y_test)
-    score_func = f_regression
-else:
-    if y_train.dtype == 'float64':
-        y_train = y_train.astype('int')
-    if y_test.dtype == 'float64':
-        y_test = y_test.astype('int')
-    score_func = f_classif
+    MLtype = snakemake.wildcards.MLtype # SVM or neural net
+    MLmethod = snakemake.wildcards.MLmethod # recursion or classification
 
-data = [x_train, y_train, x_test, y_test]
-data, _ = select_k_best(data, None, score_func=score_func,  k=270)
-data = scale_to_range(data)
+    if MLmethod == 'R': # Enforce numerical labels for recursion
+        y_train = convert_to_numbers(y_train)
+        y_test = convert_to_numbers(y_test)
+        score_func = f_regression
+    else:
+        if y_train.dtype == 'float64':
+            y_train = y_train.astype('int')
+        if y_test.dtype == 'float64':
+            y_test = y_test.astype('int')
+        score_func = f_classif
 
-x_train = data[0]
-y_train = data[1]
-x_test = data[2]
-y_test = data[3]
+    data = [x_train, y_train, x_test, y_test]
+    data, _ = select_k_best(data, None, score_func=score_func,  k=270)
+    data = scale_to_range(data)
 
-if MLtype == 'NN': # Increase dimensionality of data for neural nets
-    x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], 1)
-    x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], 1)
-    if MLmethod == 'C': # One-hot encode labels for classification
-        all_labels = np.concatenate((y_train, y_test), axis=0)
-        all_labels = all_labels.astype('str')
-        encoder = LabelBinarizer()
-        encoder.fit(all_labels)
-        y_train = encoder.transform(y_train)
-        y_test = encoder.transform(y_test)
+    x_train = data[0]
+    y_train = data[1]
+    x_test = data[2]
+    y_test = data[3]
 
-with open(snakemake.output[0], 'wb') as f:
-    pickle.dump(x_train, f)
-with open(snakemake.output[1], 'wb') as f:
-    pickle.dump(y_train, f)
-with open(snakemake.output[2], 'wb') as f:
+    if MLtype == 'NN': # Increase dimensionality of data for neural nets
+        x_train = x_train.reshape(x_train.shape[0], x_train.shape[1], 1)
+        x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], 1)
+        if MLmethod == 'C': # One-hot encode labels for classification
+            all_labels = np.concatenate((y_train, y_test), axis=0)
+            all_labels = all_labels.astype('str')
+            encoder = LabelBinarizer()
+            encoder.fit(all_labels)
+            y_train = encoder.transform(y_train)
+            y_test = encoder.transform(y_test)
+
+    with open(x_train_out, 'wb') as f:
+        pickle.dump(x_train, f)
+    with open(y_train_out, 'wb') as f:
+        pickle.dump(y_train, f)
+    with open(x_test_out, 'wb') as f:
     pickle.dump(x_test, f)
-with open(snakemake.output[3], 'wb') as f:
-    pickle.dump(y_test, f)
+    with open(y_test_out, 'wb') as f:
+        pickle.dump(y_test, f)
+
+if __name__ == "__main__":
+    for k in snakemake.config["train_splits"]:
+        i = k*4
+        x_train_in = snakemake.input[i]
+        y_train_in = snakemake.input[i+1]
+        x_test_in = snakemake.input[i+2]
+        y_test_in = snakemake.input[i+3]
+        x_train_out = snakemake.output[i]
+        y_train_out = snakemake.output[i+1]
+        x_test_out = snakemake.output[i+2]
+        y_test_out = snakemake.output[i+3]
+        process_data(x_train_in, y_train_in, x_test_in, y_test_in,
+                     x_train_out, y_train_out, x_test_out, y_test_out)

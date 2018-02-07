@@ -4,3 +4,5 @@ train_size: 0.8 # percentage of files to use for training
 drugs: ['AMP', 'AMC', 'FOX', 'CRO', 'TIO', 'GEN',
         'FIS', 'SXT', 'AZM', 'CHL', 'CIP', 'NAL',
         'TET']
+train_splits: 10
+train_runs: 10

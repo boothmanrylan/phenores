@@ -1,7 +1,22 @@
 
 import os
 
-configfile: "config.yml"
+onstart:
+    import yaml
+    with open('config.yml', 'r') as f:
+        data = yaml.load(f)
+    data["train_splits"] = list(range(data["train_splits"]))
+    data["train_runs"] = list(range(data["train_runs"]))
+    with open('configuration.yml', 'w') as f:
+        yaml.dump(data, f)
+
+onsuccess:
+    shell("rm configuration.yml")
+
+onerror:
+    shell("rm configuration.yml")
+
+configfile: "configuration.yml"
 
 #################################################################################
 # FUNCTIONS                                                                     #
@@ -68,40 +83,49 @@ rule prepare_metadata: # Convert metadata sheet to useable format
     script:
         "src/data/prepare_metadata.py"
 
-rule gather_data: # Create train/test data from metadata sheet and kmner count database, save data
+rule gather_data: # Create train/test data from metadata sheet and kmer count database, save data
     input:
         "data/raw/genomes/",
         expand("data/interim/kmer_counts.k{k}.l{l}.db", k=config["k"], l=config["l"]),
         "data/interim/metadata/GenotypicAMR_{label}.pkl"
     output:
-        expand("data/interim/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}.pkl",
+        expand("data/interim/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{k}/{file}.pkl",
+               k=config["train_splits"],
                file=["x_train", "y_train", "x_test", "y_test"])
     script:
         "src/features/gather_data.py"
 
 rule process_data: # Load train/test data, perform feature selection and data scaling, save processed data
     input:
-        expand("data/interim/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}.pkl",
+        expand("data/interim/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{k}/{file}.pkl",
+               k=config["train_splits"],
                file=["x_train", "y_train", "x_test", "y_test"])
     output:
-        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}.pkl",
+        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{k}/{file}.pkl",
+               k=config["train_splits"],
                file=["x_train", "y_train", "x_test", "y_test"])
     script:
         "src/features/process_data.py"
 
 rule train_model: # Create model, pass train data to model, save model
     input:
-        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}.pkl",
+        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{k}/{file}.pkl",
+               k=config["train_splits"],
                file=["x_train", "y_train"])
     output:
-        "models/{drug}/{label}/{MLtype, (NN)|(SVM)}_{MLmethod, (C|R)}.h5"
+        expand("models/{{drug}}/{{label}}/{K}/{k}/{{MLtype, (NN)|(SVM)}}_{{MLmethod, (C|R)}}.h5",
+               k=config["train_splits"],
+               K=config["train_runs"])
     script:
         "src/models/train_{wildcards.MLtype}_{wildcards.MLmethod}.py"
 
 rule test_model: # Load pre-trained model, pass test data to model, write result to file
     input:
-        "models/{drug}/{label}/{MLtype}_{MLmethod}.h5",
-        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}.pkl",
+        expand("models/{{drug}}/{{label}}/{K}/{k}/{{MLtype}}_{{MLmethod}}.h5",
+               k=config["train_splits"],
+               K=config["train_runs"]),
+        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{k}/{file}.pkl",
+               k=config["train_splits"],
                file=["x_test", "y_test"])
     output:
         "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_{MLmethod, (C|R)}.txt"
