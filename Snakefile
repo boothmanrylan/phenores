@@ -107,3 +107,22 @@ rule test_model: # Load pre-trained model, pass test data to model, write result
         "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_{MLmethod, (C|R)}.txt"
     script:
         "src/models/test_{wildcards.MLtype}.py"
+
+rule test_drug:
+    input:
+        expand("results/{{drug}}/{label}/{MLtype}_{MLmethod}.txt",
+               label=['bin', 'clean', 'regular'], MLtype=['SVM', 'NN'],
+               MLmethod=['R', 'C'])
+    output:
+        "results/{drug}.results"
+    run:
+        for results_file in input:
+            with open(results_file, 'r') as f:
+                data = f.readlines()[-1]
+            with open(output[0], 'a') as f:
+                f.write("{0}\n".format(results_file))
+                f.write("{0}\n".format(data))
+
+rule test_all_drugs:
+    input:
+        expand("results/{drug}.results", drug=config["drugs"])
