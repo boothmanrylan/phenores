@@ -32,11 +32,13 @@ y_train = []
 for x in train_files:
     label = metadata[drug][x]
     y_train.append(label)
+y_train = np.asarray(y_train)
 
 y_test = []
 for x in test_files:
     label = metadata[drug][x]
     y_test.append(label)
+y_test = np.asarray(y_test)
 
 with open(snakemake.output[0], 'wb') as f:
     pickle.dump(x_train, f)

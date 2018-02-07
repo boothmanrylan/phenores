@@ -44,6 +44,10 @@ if MLmethod == 'R': # Enforce numerical labels for recursion
     y_test = convert_to_numbers(y_test)
     score_func = f_regression
 else:
+    if y_train.dtype == 'float64':
+        y_train = y_train.astype('int')
+    if y_test.dtype == 'float64':
+        y_test = y_test.astype('int')
     score_func = f_classif
 
 data = [x_train, y_train, x_test, y_test]
@@ -60,6 +64,7 @@ if MLtype == 'NN': # Increase dimensionality of data for neural nets
     x_test = x_test.reshape(x_test.shape[0], x_test.shape[1], 1)
     if MLmethod == 'C': # One-hot encode labels for classification
         all_labels = np.concatenate((y_train, y_test), axis=0)
+        all_labels = all_labels.astype('str')
         encoder = LabelBinarizer()
         encoder.fit(all_labels)
         y_train = encoder.transform(y_train)
