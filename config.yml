@@ -1,31 +1,6 @@
 k: 7 # The length of kmer to count
 l: 13 # The Minimum frequency for a kmer to be
-train_size: 0.8
-antibiotics:
-    -  MIC_AMP
-    -  MIC_AMC
-    -  MIC_FOX 
-    -  MIC_CRO 
-    -  MIC_TIO 
-    -  MIC_GEN
-    -  MIC_FIS 
-    -  MIC_SXT 
-    -  MIC_AZM 
-    -  MIC_CHL 
-    -  MIC_CIP 
-    -  MIC_NAL 
-    -  MIC_TET
-data_files:
-    - x_train.pkl
-    - x_test.pkl
-label_files:
-    - y_train_regular.pkl
-    - y_train_bin.pkl
-    - y_train_clean.pkl
-    - y_test_regular.pkl
-    - y_test_bin.pkl
-    - y_test_clean.pkl
-metadata:
-    bin: data/interim/mic_class_dataframe.pkl
-    clean: data/interim/GenotypicAMR_clean.pkl
-    regular: data/interim/GenotypicAMR.pkl
+train_size: 0.8 # percentage of files to use for training
+drugs: ['AMP', 'AMC', 'FOX', 'CRO', 'TIO', 'GEN',
+        'FIS', 'SXT', 'AZM', 'CHL', 'CIP', 'NAL',
+        'TET']
