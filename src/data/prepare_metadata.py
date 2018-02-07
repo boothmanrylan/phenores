@@ -25,7 +25,7 @@ def clean_series(series): # Wrapper to apply to each element
     return new_series
 
 drugs = ['MIC_AMP', 'MIC_AMC', 'MIC_FOX', 'MIC_CRO', 'MIC_TIO', 'MIC_GEN',
-         'MIC_FIS', 'MIC_SXT', 'MIC_AZN', 'MIC_CHL', 'MIC_CIP', 'MIC_NAL',
+         'MIC_FIS', 'MIC_SXT', 'MIC_AZM', 'MIC_CHL', 'MIC_CIP', 'MIC_NAL',
          'MIC_TET']
 convertor = {k: lambda x: unicodedata.normalize("NFKD", x) for k in drugs}
 
