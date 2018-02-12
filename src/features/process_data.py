@@ -27,17 +27,16 @@ def convert_to_numbers(labels): # TODO: Get rid of this bin/regular aren't for r
 
     return new_labels
 
-def process_data(x_train_in, y_train_in, x_test_in, y_test_in, x_train_out,
-                 y_train_out, x_test_out, y_test_out):
+def process_data(train_in, test_in, train_out, test_out):
 
-    with open(x_train_in, 'rb') as f:
-        x_train = pickle.load(f)
-    with open(y_train_in, 'rb') as f:
-        y_train = pickle.load(f)
-    with open(x_test_in, 'rb') as f:
-        x_test = pickle.load(f)
-    with open(y_test_in, 'rb') as f:
-        y_test = pickle.load(f)
+    with open(train_in, 'rb') as f:
+        train_data = pickle.load(f)
+        x_train = train_data[0]
+        y_train = train_data[1]
+    with open(test_in, 'rb') as f:
+        test_data = pickle.load(f)
+        x_test = test_data[0]
+        y_test = test_data[1]
 
     MLtype = snakemake.wildcards.MLtype # SVM or neural net
     MLmethod = snakemake.wildcards.MLmethod # recursion or classification
@@ -73,25 +72,19 @@ def process_data(x_train_in, y_train_in, x_test_in, y_test_in, x_train_out,
             y_train = encoder.transform(y_train)
             y_test = encoder.transform(y_test)
 
-    with open(x_train_out, 'wb') as f:
-        pickle.dump(x_train, f)
-    with open(y_train_out, 'wb') as f:
-        pickle.dump(y_train, f)
-    with open(x_test_out, 'wb') as f:
-    pickle.dump(x_test, f)
-    with open(y_test_out, 'wb') as f:
-        pickle.dump(y_test, f)
+    train_data = [x_train, y_train]
+    test_data = [x_test, y_test]
+
+    with open(train_out, 'wb') as f:
+        pickle.dump(train_data, f)
+    with open(test_out, 'wb') as f:
+        pickle.dump(test_data, f)
 
 if __name__ == "__main__":
-    for k in snakemake.config["train_splits"]:
-        i = k*4
-        x_train_in = snakemake.input[i]
-        y_train_in = snakemake.input[i+1]
-        x_test_in = snakemake.input[i+2]
-        y_test_in = snakemake.input[i+3]
-        x_train_out = snakemake.output[i]
-        y_train_out = snakemake.output[i+1]
-        x_test_out = snakemake.output[i+2]
-        y_test_out = snakemake.output[i+3]
-        process_data(x_train_in, y_train_in, x_test_in, y_test_in,
-                     x_train_out, y_train_out, x_test_out, y_test_out)
+    for k in range(snakemake.config["train_splits"]):
+        i = k*2
+        train_in = snakemake.input[i]
+        test_in = snakemake.input[i+1]
+        train_out = snakemake.output[i]
+        test_out = snakemake.output[i+1]
+        process_data(train_in, test_in, train_out, test_out)

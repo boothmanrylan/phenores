@@ -1,22 +1,7 @@
 
 import os
 
-onstart:
-    import yaml
-    with open('config.yml', 'r') as f:
-        data = yaml.load(f)
-    data["train_splits"] = list(range(data["train_splits"]))
-    data["train_runs"] = list(range(data["train_runs"]))
-    with open('configuration.yml', 'w') as f:
-        yaml.dump(data, f)
-
-onsuccess:
-    shell("rm configuration.yml")
-
-onerror:
-    shell("rm configuration.yml")
-
-configfile: "configuration.yml"
+configfile: "config.yml"
 
 #################################################################################
 # FUNCTIONS                                                                     #
@@ -89,54 +74,52 @@ rule gather_data: # Create train/test data from metadata sheet and kmer count da
         expand("data/interim/kmer_counts.k{k}.l{l}.db", k=config["k"], l=config["l"]),
         "data/interim/metadata/GenotypicAMR_{label}.pkl"
     output:
-        expand("data/interim/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{k}/{file}.pkl",
-               k=config["train_splits"],
-               file=["x_train", "y_train", "x_test", "y_test"])
+        temp(expand("data/interim/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}_{ts}.pkl",
+               ts=list(range(config["train_splits"])),
+               file=["train", "test"]))
     script:
         "src/features/gather_data.py"
 
 rule process_data: # Load train/test data, perform feature selection and data scaling, save processed data
     input:
-        expand("data/interim/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{k}/{file}.pkl",
-               k=config["train_splits"],
-               file=["x_train", "y_train", "x_test", "y_test"])
+        expand("data/interim/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}_{ts}.pkl",
+               ts=list(range(config["train_splits"])),
+               file=["train", "test"])
     output:
-        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{k}/{file}.pkl",
-               k=config["train_splits"],
-               file=["x_train", "y_train", "x_test", "y_test"])
+        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}_{ts}.pkl",
+               ts=list(range(config["train_splits"])),
+               file=["train", "test"])
     script:
         "src/features/process_data.py"
 
 rule train_model: # Create model, pass train data to model, save model
     input:
-        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{k}/{file}.pkl",
-               k=config["train_splits"],
-               file=["x_train", "y_train"])
+        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/train_{ts}.pkl",
+               ts=list(range(config["train_splits"]))),
     output:
-        expand("models/{{drug}}/{{label}}/{K}/{k}/{{MLtype, (NN)|(SVM)}}_{{MLmethod, (C|R)}}.h5",
-               k=config["train_splits"],
-               K=config["train_runs"])
+        expand("models/{{drug}}/{{label}}/{{MLtype,(NN)|(SVM)}}_{{MLmethod,(C|R)}}_{ts}_{r}.h5",
+               ts=list(range(config["train_splits"])),
+               r=list(range(config["runs"])))
     script:
-        "src/models/train_{wildcards.MLtype}_{wildcards.MLmethod}.py"
+        "src/models/train_model.py"
 
 rule test_model: # Load pre-trained model, pass test data to model, write result to file
     input:
-        expand("models/{{drug}}/{{label}}/{K}/{k}/{{MLtype}}_{{MLmethod}}.h5",
-               k=config["train_splits"],
-               K=config["train_runs"]),
-        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{k}/{file}.pkl",
-               k=config["train_splits"],
-               file=["x_test", "y_test"])
+        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/test_{ts}.pkl",
+               ts=list(range(config["train_splits"]))),
+        expand("models/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}_{ts}_{r}.h5",
+               ts=list(range(config["train_splits"])),
+               r=list(range(config["runs"]))),
     output:
         "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_{MLmethod, (C|R)}.txt"
     script:
-        "src/models/test_{wildcards.MLtype}.py"
+        "src/models/test_model.py"
 
 rule test_drug:
     input:
         expand("results/{{drug}}/{label}/{MLtype}_{MLmethod}.txt",
-               label=['bin', 'clean', 'regular'], MLtype=['SVM', 'NN'],
-               MLmethod=['R', 'C'])
+               label=['clean', 'bin', 'regular'], MLtype=['NN', 'SVM'],
+               MLmethod=['C', 'R'])
     output:
         "results/{drug}.results"
     run:
