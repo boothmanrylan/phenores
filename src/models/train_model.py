@@ -16,12 +16,6 @@ def train_SVM_C(x_train, y_train, model_out):
     model.fit(x_train, y_train)
     joblib.dump(model, model_out)
 
-def train_SVM_R(x_train, y_train, model_out):
-    model = SVR(kernel='linear')
-
-    model.fit(x_train, y_train)
-    joblib.dump(model, model_out)
-
 def train_NN_C(x_train, y_train, model_out):
     model = Sequential()
     model.add(Conv1D(filters=10,
@@ -36,33 +30,11 @@ def train_NN_C(x_train, y_train, model_out):
     model.fit(x_train, y_train, epochs=50, batch_size=10, verbose=0)
     model.save(model_out)
 
-def train_NN_R(x_train, y_train, model_out):
-    model = Sequential()
-    model.add(Conv1D(filters=10,
-                     kernel_size=3,
-                     activation='relu',
-                     input_shape=x_train.shape[1:]))
-    model.add(Flatten())
-    model.add(Dense(1, kernel_initializer='normal'))
-    model.compile(optimizer='adam',
-                  loss='mean_squared_error',
-                  metrics=['accuracy'])
-    y_train = np.asarray(y_train)
-
-    model.fit(x_train, y_train, epochs=50, batch_size=10, verbose=0)
-    model.save(model_out)
-
 if __name__ == "__main__":
     if snakemake.wildcards.MLtype == 'NN':
-        if snakemake.wildcards.MLmethod == 'R':
-            function = train_NN_R
-        else:
-            function = train_NN_C
+        function = train_NN_C
     else:
-        if snakemake.wildcards.MLmethod == 'R':
-            function = train_SVM_R
-        else:
-            function = train_SVM_C
+        function = train_SVM_C
     print(snakemake.output)
     for ts in range(snakemake.config["train_splits"]):
         with open(snakemake.input[ts], 'rb') as f:

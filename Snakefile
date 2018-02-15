@@ -74,7 +74,7 @@ rule gather_data: # Create train/test data from metadata sheet and kmer count da
         expand("data/interim/kmer_counts.k{k}.l{l}.db", k=config["k"], l=config["l"]),
         "data/interim/metadata/GenotypicAMR_{label}.pkl"
     output:
-        temp(expand("data/interim/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}_{ts}.pkl",
+        temp(expand("data/interim/{{drug}}/{{label}}/{{MLtype}}/{file}_{ts}.pkl",
                ts=list(range(config["train_splits"])),
                file=["train", "test"]))
     script:
@@ -82,11 +82,11 @@ rule gather_data: # Create train/test data from metadata sheet and kmer count da
 
 rule process_data: # Load train/test data, perform feature selection and data scaling, save processed data
     input:
-        expand("data/interim/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}_{ts}.pkl",
+        expand("data/interim/{{drug}}/{{label}}/{{MLtype}}/{file}_{ts}.pkl",
                ts=list(range(config["train_splits"])),
                file=["train", "test"])
     output:
-        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/{file}_{ts}.pkl",
+        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}/{file}_{ts}.pkl",
                ts=list(range(config["train_splits"])),
                file=["train", "test"])
     script:
@@ -94,10 +94,10 @@ rule process_data: # Load train/test data, perform feature selection and data sc
 
 rule train_model: # Create model, pass train data to model, save model
     input:
-        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/train_{ts}.pkl",
+        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}/train_{ts}.pkl",
                ts=list(range(config["train_splits"]))),
     output:
-        expand("models/{{drug}}/{{label}}/{{MLtype,(NN)|(SVM)}}_{{MLmethod,(C|R)}}_{ts}_{r}.h5",
+        expand("models/{{drug}}/{{label}}/{{MLtype,(NN)|(SVM)}}_{ts}_{r}.h5",
                ts=list(range(config["train_splits"])),
                r=list(range(config["runs"])))
     script:
@@ -105,21 +105,20 @@ rule train_model: # Create model, pass train data to model, save model
 
 rule test_model: # Load pre-trained model, pass test data to model, write result to file
     input:
-        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}/test_{ts}.pkl",
+        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}/test_{ts}.pkl",
                ts=list(range(config["train_splits"]))),
-        expand("models/{{drug}}/{{label}}/{{MLtype}}_{{MLmethod}}_{ts}_{r}.h5",
+        expand("models/{{drug}}/{{label}}/{{MLtype}}_{ts}_{r}.h5",
                ts=list(range(config["train_splits"])),
                r=list(range(config["runs"]))),
     output:
-        "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_{MLmethod, (C|R)}.txt"
+        "results/{drug}/{label}/{MLtype, (NN)|(SVM)}.txt"
     script:
         "src/models/test_model.py"
 
 rule test_drug:
     input:
-        expand("results/{{drug}}/{label}/{MLtype}_{MLmethod}.txt",
-               label=['clean', 'bin', 'regular'], MLtype=['NN', 'SVM'],
-               MLmethod=['C', 'R'])
+        expand("results/{{drug}}/{label}/{MLtype}.txt",
+               label=['clean', 'bin', 'regular'], MLtype=['NN', 'SVM'])
     output:
         "results/{drug}.results"
     run:
