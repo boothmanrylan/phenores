@@ -45,7 +45,7 @@ def OPJ(*args):
 
 rule bin_mics: # Matt's MIC value encoding method
     input:
-        "data/raw/GenotypicAMR.csv"
+        "/home/rylan/phenores/data/raw/GenotypicAMR.csv"
     output:
         "data/interim/mic_class_dataframe.pkl", "data/interim/mic_class_order_dict.pkl"
     script:
@@ -53,7 +53,7 @@ rule bin_mics: # Matt's MIC value encoding method
 
 rule count_kmers: # Create the kmer count database
     input:
-        "data/raw/genomes/"
+        "/home/rylan/phenores/data/raw/genomes/"
     output:
         expand("data/interim/kmer_counts.k{k}.l{l}.db", k=config["k"], l=config["l"])
     script:
@@ -61,7 +61,7 @@ rule count_kmers: # Create the kmer count database
 
 rule prepare_metadata: # Convert metadata sheet to useable format
     input:
-        "data/raw/GenotypicAMR.csv",
+        "/home/rylan/phenores/data/raw/GenotypicAMR.csv",
         "data/interim/mic_class_dataframe.pkl"
     output:
         expand("data/interim/metadata/GenotypicAMR_{label}.pkl", label=['regular', 'clean', 'bin'])
@@ -70,50 +70,23 @@ rule prepare_metadata: # Convert metadata sheet to useable format
 
 rule gather_data: # Create train/test data from metadata sheet and kmer count database, save data
     input:
-        "data/raw/genomes/",
+        "/home/rylan/phenores/data/raw/genomes/",
         expand("data/interim/kmer_counts.k{k}.l{l}.db", k=config["k"], l=config["l"]),
         "data/interim/metadata/GenotypicAMR_{label}.pkl"
     output:
-        temp(expand("data/interim/{{drug}}/{{label}}/{{MLtype}}/{file}_{ts}.pkl",
-               ts=list(range(config["train_splits"])),
-               file=["train", "test"]))
+        "data/processed/{drug}/{label}/data.pkl",
+        "data/processed/{drug}/{label}/target.pkl"
     script:
         "src/features/gather_data.py"
 
-rule process_data: # Load train/test data, perform feature selection and data scaling, save processed data
+rule cross_validate_model: # Create model, pass train data to model, save model
     input:
-        expand("data/interim/{{drug}}/{{label}}/{{MLtype}}/{file}_{ts}.pkl",
-               ts=list(range(config["train_splits"])),
-               file=["train", "test"])
-    output:
-        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}/{file}_{ts}.pkl",
-               ts=list(range(config["train_splits"])),
-               file=["train", "test"])
-    script:
-        "src/features/process_data.py"
-
-rule train_model: # Create model, pass train data to model, save model
-    input:
-        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}/train_{ts}.pkl",
-               ts=list(range(config["train_splits"]))),
-    output:
-        expand("models/{{drug}}/{{label}}/{{MLtype,(NN)|(SVM)}}_{ts}_{r}.h5",
-               ts=list(range(config["train_splits"])),
-               r=list(range(config["runs"])))
-    script:
-        "src/models/train_model.py"
-
-rule test_model: # Load pre-trained model, pass test data to model, write result to file
-    input:
-        expand("data/processed/{{drug}}/{{label}}/{{MLtype}}/test_{ts}.pkl",
-               ts=list(range(config["train_splits"]))),
-        expand("models/{{drug}}/{{label}}/{{MLtype}}_{ts}_{r}.h5",
-               ts=list(range(config["train_splits"])),
-               r=list(range(config["runs"]))),
+        "data/processed/{drug}/{label}/data.pkl",
+        "data/processed/{drug}/{label}/target.pkl"
     output:
         "results/{drug}/{label}/{MLtype, (NN)|(SVM)}.txt"
     script:
-        "src/models/test_model.py"
+        "src/models/cross_validate.py"
 
 rule test_drug:
     input:
