@@ -23,14 +23,15 @@ if __name__ == "__main__":
     labels = [x.replace(directory, '').replace('.fasta', '') for x in files]
 
     drug = snakemake.wildcards.drug
+    mic_vals = metadata[drug]
 
-    target = np.zeros(len(labels), dtype='str')
+    targets = np.zeros(len(labels), dtype='<U7')
     for index, value in enumerate(labels):
-        label = metadata[drug][value]
-        target[index] = label
+        label = mic_vals.loc[mic_vals.index == value].values
+        targets[index] = label[0]
 
     with open(data_file, 'wb') as f:
         pickle.dump(data, f)
     with open(target_file, 'wb') as f:
-        pickle.dump(target, f)
+        pickle.dump(targets, f)
 
