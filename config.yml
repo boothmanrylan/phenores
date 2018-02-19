@@ -2,5 +2,6 @@ drugs: [AMP, AMC, FOX, CRO, TIO, GEN, FIS, SXT, AZM, CHL, CIP, NAL, TET]
 k: 7
 l: 13
 train_size: 0.8
-cross_validations: 10
 select_k_features: 270
+n_splits: 10
+n_repeats: 10

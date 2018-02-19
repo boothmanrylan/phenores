@@ -4,7 +4,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.preprocessing import MinMaxScaler, LabelBinarizer
-from sklearn.model_selection import cross_val_predict
+from sklearn.model_selection import RepeatedKFold, cross_val_score
 from sklearn.metrics import accuracy_score
 from sklearn.svm import SVC
 from keras.wrappers.scikit_learn import KerasClassifier
@@ -104,16 +104,16 @@ def main():
 
     classifier = Pipeline(steps)
 
-    predicted_vals = cross_val_predict(classifier, data, targets,
-                                       cv=snakemake.config["cross_validations"])
+    splits = snakemake.config['n_splits']
+    repeats = snakemake.config['n_repeats']
+    rkf = RepeatedKFold(n_splits=splits, n_repeats=repeats)
 
-    if snakemake.wildcards.MLtype == 'NN':
-        targets = encoder.inverse_transform(targets)
+    scores = cross_val_score(classifier, data, targets, cv=rkf)
 
-    accuracy = accuracy_score(targets, predicted_vals)
+    results = [np.mean(scores), np.std(scores), scores.shape[0]]
 
     with open(snakemake.output[0], 'w') as f:
-        f.write('{0}\n'.format(accuracy))
+        f.write('MeanAcc,StdDev,Runs\n{},{},{}\n'.format(*results))
 
 
 if __name__ == "__main__":
