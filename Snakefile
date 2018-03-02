@@ -45,7 +45,7 @@ def OPJ(*args):
 
 rule bin_mics: # Matt's MIC value encoding method
     input:
-        "/home/rylan/phenores/data/raw/GenotypicAMR.csv"
+        "data/raw/GenotypicAMR.csv"
     output:
         "data/interim/mic_class_dataframe.pkl", "data/interim/mic_class_order_dict.pkl"
     script:
@@ -53,7 +53,7 @@ rule bin_mics: # Matt's MIC value encoding method
 
 rule count_kmers: # Create the kmer count database
     input:
-        "/home/rylan/phenores/data/raw/genomes/"
+        "data/raw/genomes/"
     output:
         expand("data/interim/kmer_counts.k{k}.l{l}.db", k=config["k"], l=config["l"])
     script:
@@ -61,7 +61,7 @@ rule count_kmers: # Create the kmer count database
 
 rule prepare_metadata: # Convert metadata sheet to useable format
     input:
-        "/home/rylan/phenores/data/raw/GenotypicAMR.csv",
+        "data/raw/GenotypicAMR.csv",
         "data/interim/mic_class_dataframe.pkl"
     output:
         expand("data/interim/metadata/GenotypicAMR_{label}.pkl", label=['regular', 'clean', 'bin'])
@@ -70,7 +70,7 @@ rule prepare_metadata: # Convert metadata sheet to useable format
 
 rule gather_data: # Create train/test data from metadata sheet and kmer count database, save data
     input:
-        "/home/rylan/phenores/data/raw/genomes/",
+        "data/raw/genomes/",
         expand("data/interim/kmer_counts.k{k}.l{l}.db", k=config["k"], l=config["l"]),
         "data/interim/metadata/GenotypicAMR_{label}.pkl"
     output:
@@ -79,29 +79,56 @@ rule gather_data: # Create train/test data from metadata sheet and kmer count da
     script:
         "src/features/gather_data.py"
 
-rule cross_validate_model: # Create model, pass train data to model, save model
+rule cross_validate:
     input:
         "data/processed/{drug}/{label}/data.pkl",
-        "data/processed/{drug}/{label}/target.pkl"
+        "data/processed/{drug}/{label}/target.pkl",
     output:
-        "results/{drug}/{label}/{MLtype, (NN)|(SVM)}.txt"
+        "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_results.pkl"
     script:
-        "src/models/cross_validate.py"
+        "src/models/run_model.py"
+
+rule make_predictions:
+    input:
+        "data/processed/{drug}/{label}/data.pkl",
+        "data/processed/{drug}/{label}/target.pkl",
+    output:
+        "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_predictions.pkl"
+    script:
+        "src/models/run_model.py"
 
 rule test_drug:
     input:
-        expand("results/{{drug}}/{label}/{MLtype}.txt",
+        expand("results/{{drug}}/{label}/{MLtype}_results.pkl",
                label=['clean', 'bin', 'regular'], MLtype=['NN', 'SVM'])
     output:
         "results/{drug}.results"
-    run:
-        for results_file in input:
-            with open(results_file, 'r') as f:
-                data = f.readlines()[-1]
-            with open(output[0], 'a') as f:
-                f.write("{0}\n".format(results_file))
-                f.write("{0}\n".format(data))
+    script:
+        "src/results/combine_results.py"
 
 rule test_all_drugs:
     input:
         expand("results/{drug}.results", drug=config["drugs"])
+    output:
+        "results/complete_results.pkl"
+    script:
+        "src/results/combine_results.py"
+
+rule predictions_for_drug:
+    input:
+        expand("results/{{drug}}/{label}/{MLtype}_results.pkl",
+               label=['clean', 'bin', 'regular'], MLtype=['NN', 'SVM'])
+    output:
+        "results/{drug}.predictions"
+    script:
+        "src/results/combine_predictions.py"
+
+rule predictions_for_all_drugs:
+    input:
+        expand("results/{drug}.predictions", drug=config["drugs"])
+    output:
+        "results/complete_predictions.pkl"
+    script:
+        "src/results/combine_results.py"
+
+
