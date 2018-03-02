@@ -61,12 +61,8 @@ class SelectionWrapper(BaseEstimator, TransformerMixin):
         x_prime = self.selector.transform(x)
         return x_prime
 
-
 def create_pipeline(MLtype, num_features, num_classes):
     if MLtype == 'NN':
-        encoder = LabelBinarizer()
-        encoder.fit(target)
-        target = encoder.transform(target)
         encode = True
     else:
         encode = False
@@ -78,7 +74,8 @@ def create_pipeline(MLtype, num_features, num_classes):
         steps.append(('change_dims', AddDimension()))
         steps.append(('model', KerasClassifier(create_nn, epochs=50,
                                                batch_size=10, verbose=0,
-                                               classes=classes, features=num_features)))
+                                               classes=num_classes,
+                                               features=num_features)))
     else:
         steps.append(('model', SVC(kernel='linear')))
 
@@ -114,20 +111,27 @@ def main():
     repeats = snakemake.config['n_repeats']
     k = snakemake.config["select_k_features"]
 
-    classifier = make_pipeline(model_type, k, classes)
+    if model_type == 'NN':
+        encoder = LabelBinarizer()
+        encoder.fit(target)
+        target = encoder.transform(target)
 
-    if 'results' in output_file:
+    classifier = create_pipeline(model_type, k, classes)
+
+    if snakemake.wildcards.run_type == 'results':
         rkf = RepeatedKFold(n_splits=splits, n_repeats=repeats)
 
         scores = cross_val_score(classifier, data, target, cv=rkf)
 
         output = pd.DataFrame(columns=['Drug', 'Model Type', 'Label Encoding',
-                                       'Mean Accuracy', 'Std. Deviation',
-                                       '# of Runs'])
+                                       'Accuracy'],
+                              index=np.arange(splits*repeats))
 
-        output.loc[0] = [drug, model_type, label_encoding, np.mean(scores),
-                         np.std(scores), scores.shape[0]]
-    else:
+        count = 0
+        for accuracy in scores:
+            output.loc[count] = [drug, model_type, label_encoding, accuracy]
+            count += 1
+    else: # snakemake.wildcards.tun_type == 'predictions'
         predictions = cross_val_predict(classifier, data, target, cv=10)
 
         if MLtype == 'NN':
