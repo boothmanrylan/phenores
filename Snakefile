@@ -93,7 +93,8 @@ rule run_model:
         "data/processed/{drug}/{label}/data.pkl",
         "data/processed/{drug}/{label}/target.pkl",
     output:
-        "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_{run_type}.pkl"
+       "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_{run_type}.pkl",
+       "results/{drug}/{label}/{MLtype}_{run_type}_feature_coefs.pkl"
     script:
         "src/models/run_model.py"
 
@@ -137,3 +138,16 @@ rule create_prediction_tables:
             data = pickle.load(f)
         data.to_csv(output[0], index=False, sep=',')
 
+rule clean_feature_importances:
+    input:
+        expand("results/{{drug}}/{{label}}/{MLtype}_{run_type}_feature_coefs.pkl",
+               MLtype=['SVM', 'NN'], run_type=['predictions', 'results'])
+    output:
+        "results/{drug}/{label}/feature_coefs.pkl"
+    run:
+        import os
+        for f in input:
+            if ('SVM' in f) and ('results' in f):
+                os.rename(f, output[0])
+            else:
+                os.remove(f)

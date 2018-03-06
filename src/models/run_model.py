@@ -61,6 +61,20 @@ class SelectionWrapper(BaseEstimator, TransformerMixin):
         x_prime = self.selector.transform(x)
         return x_prime
 
+
+def create_nn(classes=None, features=None):
+    model = Sequential()
+    model.add(Conv1D(filters=10,
+                     kernel_size=3,
+                     activation='relu',
+                     input_shape=(features, 1)))
+    model.add(Flatten())
+    model.add(Dense(classes, activation='softmax'))
+    model.compile(optimizer='adam', loss='binary_crossentropy',
+                  metrics=['accuracy'])
+    return model
+
+
 def create_pipeline(MLtype, num_features, num_classes):
     if MLtype == 'NN':
         encode = True
@@ -83,17 +97,57 @@ def create_pipeline(MLtype, num_features, num_classes):
     return classifier
 
 
-def create_nn(classes=None, features=None):
-    model = Sequential()
-    model.add(Conv1D(filters=10,
-                     kernel_size=3,
-                     activation='relu',
-                     input_shape=(features, 1)))
-    model.add(Flatten())
-    model.add(Dense(classes, activation='softmax'))
-    model.compile(optimizer='adam', loss='binary_crossentropy',
-                  metrics=['accuracy'])
-    return model
+def cross_validate(MLtype, classifier, data, target):
+    kf = KFold(n_splits=snakemake.config['n_splits'], shuffle=True)
+
+    cols = ['Drug', 'Model Type', 'Label Encoding', 'Accuracy']
+    output = pd.DataFrame(columns=cols, index=np.arange(n_splits))
+
+    # If the model is an SVM output feature coeffcients and accuracies
+    # If the model is an NN only output accuracies
+    if MLtype == 'SVM':
+        scores, coefs = [], []
+        for train, test in rkf.split(data, target):
+            clf = classifier
+            clf.fit(data.as_matrix()[train], target[train])
+            scores.append(clf.score(data.as_matrix()[test], target[test]))
+            coef = clf.coef_
+
+            if coef.ndim > 1:
+                coef = coef.sum(axis=1)
+
+            coefs.append(np.absolute(coef))
+        feature_coefs = pd.DataFrame(coefs, columns=data.columns)
+    else:
+        scores = cross_val_score(classifier, data.as_matrix(), target, cv=kf)
+        feature_coefs = None
+
+    drug = snakemake.wildcards.drug
+    label = snakemake.wildcard.label
+    for index, value in enumerate(scores):
+        output.loc[index] = [drug, model_type, label, value]
+
+    return output, feature_coefs
+
+
+def make_predictions(MLtype, classifier, data, target)
+    predictions = cross_val_predict(classifier, data, target, cv=3)
+
+    if MLtype == 'NN':
+        encoder = LabelBinarizer()
+        encoder.fit(target)
+        target = encoder.transform(target)
+        target = encoder.inverse_transform(target)
+        predictions = encoder.inverse_transform(predictions)
+
+    cols = ['Drug','Genome','True value','{} {} Prediction'.format(MLtype,label)]
+    output = pd.DataFrame(columns=cols, index=np.arange(genomes.shape[0]))
+
+    drug = snakemake.wildcards.drug
+    for index, value in enumerate(predictions):
+        output.loc[index] = [drug, genomes[index], value, target[index]]
+
+    return output
 
 
 def main():
@@ -103,52 +157,20 @@ def main():
         target = pickle.load(f)
         classes = np.unique(target).shape[0]
 
-    model_type = snakemake.wildcards.MLtype
-    drug = snakemake.wildcards.drug
-    label_encoding = snakemake.wildcards.label
-    output_file = snakemake.output[0]
-    splits = snakemake.config['n_splits']
-    repeats = snakemake.config['n_repeats']
+    mtype = snakemake.wildcards.MLtype
     k = snakemake.config["select_k_features"]
-
-    if model_type == 'NN':
-        encoder = LabelBinarizer()
-        encoder.fit(target)
-        target = encoder.transform(target)
-
-    classifier = create_pipeline(model_type, k, classes)
+    clf = create_pipeline(model_type, k, classes)
 
     if snakemake.wildcards.run_type == 'results':
-        rkf = RepeatedKFold(n_splits=splits, n_repeats=repeats)
+        output, feature_coefs = cross_validate(mtype, clf, data, target)
+    else:
+        output = make_predictions(mtype, clf, data, target)
+        feature_coefs = None
 
-        scores = cross_val_score(classifier, data, target, cv=rkf)
-
-        output = pd.DataFrame(columns=['Drug', 'Model Type', 'Label Encoding',
-                                       'Accuracy'],
-                              index=np.arange(splits*repeats))
-
-        count = 0
-        for accuracy in scores:
-            output.loc[count] = [drug, model_type, label_encoding, accuracy]
-            count += 1
-    else: # snakemake.wildcards.tun_type == 'predictions'
-        predictions = cross_val_predict(classifier, data, target, cv=10)
-
-        if MLtype == 'NN':
-            target = encoder.inverse_transform(target)
-            predictions = encoder.inverse_transform(predictions)
-
-        output = pd.DataFrame(index=np.arange(genomes.shape[0]),
-                              columns=['Drug', 'Genome', 'True Value',
-                                       '{} {} Prediction'.format(MLtype, label)])
-
-        count = 0
-        for index, value in enumerate(predictions):
-            output.loc[count] = [drug, genomes[index], value, target[index]]
-            count += 1
-
-    with open(output_file, 'wb') as f:
+    with open(snakemake.output[0], 'wb') as f:
         pickle.dump(output, f)
+    with open(snakemake.output[1], 'wb') as f:
+        pickle.dump(feature_coefs, f)
 
 if __name__ == "__main__":
     main()

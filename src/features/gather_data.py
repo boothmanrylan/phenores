@@ -4,12 +4,12 @@ import random
 import os
 import pandas as pd
 import numpy as np
-from kmerprediction.kmer_counter import get_counts
+from kmerprediction.kmer_counter import get_counts, get_kmer_names
 from sklearn.externals import joblib
 
 if __name__ == "__main__":
     directory = snakemake.input[0]
-    database = snakemake.input[1]
+    db = snakemake.input[1]
     metadata = snakemake.input[2]
 
     data_file = snakemake.output[0]
@@ -18,7 +18,7 @@ if __name__ == "__main__":
     metadata = joblib.load(metadata)
 
     files = [directory + x for x in os.listdir(directory)]
-    data = get_counts(files, database)
+    data = pd.DataFrame(get_counts(files, db), columns=get_kmer_names(db))
 
     labels = [x.replace(directory, '').replace('.fasta', '') for x in files]
 
