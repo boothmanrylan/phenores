@@ -42,36 +42,43 @@ def OPJ(*args):
 # 		sort -t' ' -k3 data/interim/PMC5328538_assembly_biosample_sra_ids.txt | join -t' ' -11 -23 -a1 -o1.1,2.1 data/interim/PMC5328538_sra_ids.txt - > {output}
 # 		
 
-
-rule bin_mics: # Matt's MIC value encoding method
+# Matt's MIC value encoding method
+rule bin_mics:
     input:
         "data/raw/GenotypicAMR.csv"
     output:
-        "data/interim/mic_class_dataframe.pkl", "data/interim/mic_class_order_dict.pkl"
+        "data/interim/mic_class_dataframe.pkl",
+        "data/interim/mic_class_order_dict.pkl"
     script:
         "src/data/bin_mics.py"
 
-rule count_kmers: # Create the kmer count database
+# Create the kmer count database
+rule count_kmers:
     input:
         "data/raw/genomes/"
     output:
-        expand("data/interim/kmer_counts.k{k}.l{l}.db", k=config["k"], l=config["l"])
+        expand("data/interim/kmer_counts.k{k}.l{l}.db",
+               k=config["k"], l=config["l"])
     script:
         "src/data/count_kmers.py"
 
-rule prepare_metadata: # Convert metadata sheet to useable format
+# Convert metadata sheet to useable format
+rule prepare_metadata:
     input:
         "data/raw/GenotypicAMR.csv",
         "data/interim/mic_class_dataframe.pkl"
     output:
-        expand("data/interim/metadata/GenotypicAMR_{label}.pkl", label=['regular', 'clean', 'bin'])
+        expand("data/interim/metadata/GenotypicAMR_{label}.pkl",
+               label=['regular', 'clean', 'bin'])
     script:
         "src/data/prepare_metadata.py"
 
-rule gather_data: # Create train/test data from metadata sheet and kmer count database, save data
+# Create train/test data from metadata sheet and kmer count database, save data
+rule gather_data:
     input:
         "data/raw/genomes/",
-        expand("data/interim/kmer_counts.k{k}.l{l}.db", k=config["k"], l=config["l"]),
+        expand("data/interim/kmer_counts.k{k}.l{l}.db",
+               k=config["k"], l=config["l"]),
         "data/interim/metadata/GenotypicAMR_{label}.pkl"
     output:
         "data/processed/{drug}/{label}/data.pkl",
@@ -79,56 +86,54 @@ rule gather_data: # Create train/test data from metadata sheet and kmer count da
     script:
         "src/features/gather_data.py"
 
-rule cross_validate:
+# Perform cross validation if run_type == results
+# Return predicted/true value comparison if run_type == predictions
+rule run_model:
     input:
         "data/processed/{drug}/{label}/data.pkl",
         "data/processed/{drug}/{label}/target.pkl",
     output:
-        "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_results.pkl"
+        "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_{run_type}.pkl"
     script:
         "src/models/run_model.py"
 
-rule make_predictions:
-    input:
-        "data/processed/{drug}/{label}/data.pkl",
-        "data/processed/{drug}/{label}/target.pkl",
-    output:
-        "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_predictions.pkl"
-    script:
-        "src/models/run_model.py"
-
+# run_model for a drug with every model/label encoding combination
 rule test_drug:
     input:
-        expand("results/{{drug}}/{label}/{MLtype}_results.pkl",
+        expand("results/{{drug}}/{label}/{MLtype}_{{run_type}}.pkl",
                label=['clean', 'bin', 'regular'], MLtype=['NN', 'SVM'])
     output:
-        "results/{drug}.results"
+        "results/{drug}.{run_type}"
     script:
-        "src/results/combine_results.py"
+        "src/results/combine_{0}.py".format(wildcards.run_type)
 
+# run_model for every drug/model/label encoding combination
 rule test_all_drugs:
     input:
-        expand("results/{drug}.results", drug=config["drugs"])
+        expand("results/{drug}.{{run_type}}", drug=config["drugs"])
     output:
+        "results/complete_{run_type}.pkl"
+    script:
+        "src/results/combine_results.py"
+
+# Plot the accuracies of the models
+rule plot_accuracies:
+    input:
         "results/complete_results.pkl"
-    script:
-        "src/results/combine_results.py"
-
-rule predictions_for_drug:
-    input:
-        expand("results/{{drug}}/{label}/{MLtype}_results.pkl",
-               label=['clean', 'bin', 'regular'], MLtype=['NN', 'SVM'])
     output:
-        "results/{drug}.predictions"
+        "reports/figures/complete_results.pdf"
     script:
-        "src/results/combine_predictions.py"
+        "src/visualization/plot_accuracies.py"
 
-rule predictions_for_all_drugs:
+# Save the predicted/true value combinations as csv
+rule create_prediction_tables:
     input:
-        expand("results/{drug}.predictions", drug=config["drugs"])
-    output:
         "results/complete_predictions.pkl"
-    script:
-        "src/results/combine_results.py"
-
+    output:
+        "reports/tables/complete_predictions.csv"
+    run:
+        import pickle
+        with open(input[0], 'rb') as f:
+            data = pickle.load(f)
+        data.to_csv(output[0], index=False, sep=',')
 
