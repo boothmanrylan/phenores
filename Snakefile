@@ -88,15 +88,33 @@ rule gather_data:
 
 # Perform cross validation if run_type == results
 # Return predicted/true value comparison if run_type == predictions
-rule run_model:
+rule make_predictions:
     input:
         "data/processed/{drug}/{label}/data.pkl",
         "data/processed/{drug}/{label}/target.pkl",
     output:
-       "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_{run_type}.pkl",
-       "results/{drug}/{label}/{MLtype}_{run_type}_feature_coefs.pkl"
+       "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_predictions.pkl",
     script:
-        "src/models/run_model.py"
+        "src/models/make_predictions.py"
+
+rule cross_validate_svm:
+    input:
+        "data/processed/{drug}/{label}/data.pkl",
+        "data/processed/{drug}/{label}/target.pkl",
+    output:
+       "results/{drug}/{label}/{model, (SVM)}_results.pkl",
+       "results/{drug}/{label}/{model, (SVM)}_feature_coefs.pkl"
+    script:
+        'src/models/cross_validate.py'
+
+rule cross_validate_nn:
+    input:
+        "data/processed/{drug}/{label}/data.pkl",
+        "data/processed/{drug}/{label}/target.pkl",
+    output:
+       "results/{drug}/{label}/{model, (NN)}_results.pkl",
+    script:
+        'src/models/cross_validate.py'
 
 # run_model for a drug with every model/label encoding combination
 rule test_drug:
@@ -138,16 +156,3 @@ rule create_prediction_tables:
             data = pickle.load(f)
         data.to_csv(output[0], index=False, sep=',')
 
-rule clean_feature_importances:
-    input:
-        expand("results/{{drug}}/{{label}}/{MLtype}_{run_type}_feature_coefs.pkl",
-               MLtype=['SVM', 'NN'], run_type=['predictions', 'results'])
-    output:
-        "results/{drug}/{label}/feature_coefs.pkl"
-    run:
-        import os
-        for f in input:
-            if ('SVM' in f) and ('results' in f):
-                os.rename(f, output[0])
-            else:
-                os.remove(f)

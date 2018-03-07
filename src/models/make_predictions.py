@@ -2,40 +2,40 @@ import pickle
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import cross_val_predict
-from sklearn.preprocessing import MinMaxScaler, LabelBinarizer
-from sklearn.externals import joblib
+from sklearn.preprocessing import LabelBinarizer
+from models import NeuralNetworkPipeline, SVMPipeline
 
 def main():
     with open(snakemake.input[0], 'rb') as f:
         data = pickle.load(f)
+        n_features = data.shape[1]
     with open(snakemake.input[1], 'rb') as f:
         target = pickle.load(f)
+        n_classes = np.unique(target).shape[0]
 
     MLtype = snakemake.wildcards.MLtype
-    label = snakemake.wildcards.label
-    drug = snakemake.wildcards.drug
 
     if MLtype == 'NN':
         encoder = LabelBinarizer()
-        encoder.fit(targets)
+        encoder.fit(target)
         target = encoder.transform(target)
+        classifier = NeuralNetworkPipeline(n_classes, n_features)
+    else:
+        classifier = SVMPipeline(n_classes, n_features)
 
-    classifier = joblib.load(snakemake.input[2])
-
-    predictions = cross_val_predict(classifier, data, target, cv=10)
+    predictions = cross_val_predict(classifier, data, target)
 
     if MLtype == 'NN':
         target = encoder.inverse_transform(target)
         predictions = encoder.inverse_transform(predictions)
 
-     output = pd.DataFrame(index=np.arange(genomes.shape[0]),
-                           columns=['Drug', 'Genome', 'True Value',
-                                    '{} {} Prediction'.format(MLtype, label)])
+    label = snakemake.wildcards.label
+    cols = ['Drug','Genome','True Value','{} {} Prediction'.format(MLtype,label)]
+    output = pd.DataFrame(index=np.arange(target.shape[0]), columns=cols)
 
-    count = 0
+    drug = snakemake.wildcards.drug
     for index, value in enumerate(predictions):
-        output.loc[count] = [drug, genomes[index], value, target[index]]
-        count += 1
+        output.loc[index] = [drug, predictions[index], value, target[index]]
 
     with open(snakemake.output[0], 'wb') as f:
         pickle.dump(output, f)
