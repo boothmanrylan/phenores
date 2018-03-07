@@ -93,7 +93,7 @@ rule make_predictions:
         "data/processed/{drug}/{label}/data.pkl",
         "data/processed/{drug}/{label}/target.pkl",
     output:
-       "results/{drug}/{label}/{MLtype, (NN)|(SVM)}_predictions.pkl",
+       "results/{drug}/{label}/{model, (NN)|(SVM)}_predictions.pkl",
     script:
         "src/models/make_predictions.py"
 
@@ -119,8 +119,8 @@ rule cross_validate_nn:
 # run_model for a drug with every model/label encoding combination
 rule test_drug:
     input:
-        expand("results/{{drug}}/{label}/{MLtype}_{{run_type}}.pkl",
-               label=['clean', 'bin', 'regular'], MLtype=['NN', 'SVM'])
+        expand("results/{{drug}}/{label}/{model}_{{run_type}}.pkl",
+               label=['clean', 'bin', 'regular'], model=['NN', 'SVM'])
     output:
         "results/{drug}.{run_type}"
     script:

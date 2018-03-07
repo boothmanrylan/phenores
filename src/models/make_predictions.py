@@ -13,9 +13,9 @@ def main():
         target = pickle.load(f)
         n_classes = np.unique(target).shape[0]
 
-    MLtype = snakemake.wildcards.MLtype
+    model = snakemake.wildcards.model
 
-    if MLtype == 'NN':
+    if model == 'NN':
         encoder = LabelBinarizer()
         encoder.fit(target)
         target = encoder.transform(target)
@@ -25,12 +25,12 @@ def main():
 
     predictions = cross_val_predict(classifier, data, target)
 
-    if MLtype == 'NN':
+    if model == 'NN':
         target = encoder.inverse_transform(target)
         predictions = encoder.inverse_transform(predictions)
 
     label = snakemake.wildcards.label
-    cols = ['Drug','Genome','True Value','{} {} Prediction'.format(MLtype,label)]
+    cols = ['Drug','Genome','True Value','{} {} Prediction'.format(model,label)]
     output = pd.DataFrame(index=np.arange(target.shape[0]), columns=cols)
 
     drug = snakemake.wildcards.drug
