@@ -2,6 +2,7 @@ import pickle
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import KFold, cross_val_score
+from sklearn.preprocessing import LabelBinarizer
 from models import NeuralNetworkPipeline, SVMPipeline
 
 def main():
@@ -14,7 +15,7 @@ def main():
 
     model = snakemake.wildcards.model
     drug = snakemake.wildcards.drug
-    label = snakemake.wildcards.label
+    label = snakemake.config['label_encoding']
 
     kf = KFold(n_splits=snakemake.config['n_splits'], shuffle=True)
 
@@ -29,8 +30,8 @@ def main():
         for train, test in kf.split(data, target):
             classifier = SVMPipeline(n_classes, n_features)
             classifier.fit(data.as_matrix()[train], target[train])
-            scores.append(classifier.score(data.as_matrix[test], target[test]))
-            coef = np.absolute(clf.coef_)
+            scores.append(classifier.score(data.as_matrix()[test], target[test]))
+            coef = np.absolute(classifier.named_steps['model'].coef_)
             if coef.ndim > 1:
                 coef = coef.sum(axis=1)
             coefs.append(coef)

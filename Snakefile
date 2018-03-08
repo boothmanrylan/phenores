@@ -68,8 +68,7 @@ rule prepare_metadata:
         "data/raw/GenotypicAMR.csv",
         "data/interim/mic_class_dataframe.pkl"
     output:
-        expand("data/interim/metadata/GenotypicAMR_{label}.pkl",
-               label=['regular', 'clean', 'bin'])
+        "data/interim/metadata/GenotypicAMR_{label}.pkl"
     script:
         "src/data/prepare_metadata.py"
 
@@ -79,59 +78,57 @@ rule gather_data:
         "data/raw/genomes/",
         expand("data/interim/kmer_counts.k{k}.l{l}.db",
                k=config["k"], l=config["l"]),
-        "data/interim/metadata/GenotypicAMR_{label}.pkl"
+        expand("data/interim/metadata/GenotypicAMR_{label}.pkl",
+               label=config['label_encoding'])
     output:
-        "data/processed/{drug}/{label}/data.pkl",
-        "data/processed/{drug}/{label}/target.pkl"
+        "data/processed/{drug}/data.pkl",
+        "data/processed/{drug}/target.pkl"
     script:
         "src/features/gather_data.py"
 
-# Perform cross validation if run_type == results
-# Return predicted/true value comparison if run_type == predictions
 rule make_predictions:
     input:
-        "data/processed/{drug}/{label}/data.pkl",
-        "data/processed/{drug}/{label}/target.pkl",
+        "data/processed/{drug}/data.pkl",
+        "data/processed/{drug}/target.pkl",
     output:
-       "results/{drug}/{label}/{model, (NN)|(SVM)}_predictions.pkl",
+       "results/{drug}/{model, (NN)|(SVM)}_predictions.pkl",
     script:
         "src/models/make_predictions.py"
 
 rule cross_validate_svm:
     input:
-        "data/processed/{drug}/{label}/data.pkl",
-        "data/processed/{drug}/{label}/target.pkl",
+        "data/processed/{drug}/data.pkl",
+        "data/processed/{drug}/target.pkl",
     output:
-       "results/{drug}/{label}/{model, (SVM)}_results.pkl",
-       "results/{drug}/{label}/{model, (SVM)}_feature_coefs.pkl"
+       "results/{drug}/{model, (SVM)}_results.pkl",
+       "results/{drug}/{model, (SVM)}_feature_coefs.pkl"
     script:
         'src/models/cross_validate.py'
 
 rule cross_validate_nn:
     input:
-        "data/processed/{drug}/{label}/data.pkl",
-        "data/processed/{drug}/{label}/target.pkl",
+        "data/processed/{drug}/data.pkl",
+        "data/processed/{drug}/target.pkl",
     output:
-       "results/{drug}/{label}/{model, (NN)}_results.pkl",
+       "results/{drug}/{model, (NN)}_results.pkl",
     script:
         'src/models/cross_validate.py'
 
 # run_model for a drug with every model/label encoding combination
 rule test_drug:
     input:
-        expand("results/{{drug}}/{label}/{model}_{{run_type}}.pkl",
-               label=['clean', 'bin', 'regular'], model=['NN', 'SVM'])
+        expand("results/{{drug}}/{model}_results.pkl", model=['NN', 'SVM'])
     output:
-        "results/{drug}.{run_type}"
+        "results/{drug}.results"
     script:
-        "src/results/combine_{0}.py".format(wildcards.run_type)
+        "src/results/combine_results.py"
 
 # run_model for every drug/model/label encoding combination
 rule test_all_drugs:
     input:
-        expand("results/{drug}.{{run_type}}", drug=config["drugs"])
+        expand("results/{drug}.results", drug=config["drugs"])
     output:
-        "results/complete_{run_type}.pkl"
+        "results/complete_results.pkl"
     script:
         "src/results/combine_results.py"
 
@@ -148,11 +145,21 @@ rule plot_accuracies:
 rule create_prediction_tables:
     input:
         "results/complete_predictions.pkl"
-    output:
-        "reports/tables/complete_predictions.csv"
-    run:
-        import pickle
-        with open(input[0], 'rb') as f:
-            data = pickle.load(f)
-        data.to_csv(output[0], index=False, sep=',')
 
+rule sample_distributions:
+    input:
+        "data/processed/{drug}/data.pkl",
+        "data/processed/{drug}/target.pkl"
+    output:
+        "results/{drug}/sample_distributions.pkl"
+    script:
+        "src/data/sample_ditributions.py"
+
+rule feature_importances:
+    input:
+        "results/{drug}/SVM_feature_coefs.pkl",
+        "results/{drug}/sample_distributions.pkl"
+    output:
+        "results/{drug}/feature_importances.pkl"
+    script:
+        "src/results/feature_importances.py"
