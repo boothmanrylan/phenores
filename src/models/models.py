@@ -76,7 +76,7 @@ def create_nn(classes=None, features=None):
 
 
 def NeuralNetworkPipeline(n_classes, n_features):
-    steps = [('selection', SelectionWrapper(n_features, n_class, True)),
+    steps = [('selection', SelectionWrapper(n_features, n_classes, True)),
              ('scaling', MinMaxScaler(feature_range=(-1,1))),
              ('change_dims', AddDimension()),
              ('model', KerasClassifier(create_nn, epochs=50,
@@ -88,7 +88,7 @@ def NeuralNetworkPipeline(n_classes, n_features):
 
 
 def SVMPipeline(n_classes, n_features):
-    steps = [('selection', SelectionWrapper(n_features, n_class, False)),
+    steps = [('selection', SelectionWrapper(n_features, n_classes, False)),
              ('scaling', MinMaxScaler(feature_range=(-1,1))),
              ('model', SVC(kernel='linear'))]
     classifier = Pipeline(steps)
